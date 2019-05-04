@@ -22,14 +22,15 @@ from __future__ import with_statement
 
 import logging
 import urllib
+import urllib.request
 import os
-import urlparse
+import urllib.parse as urlparse
 import re
 import datetime
 import progressbar
 import socket
 
-from contextlib import nested, closing
+from contextlib import closing
 
 import wp_download.exceptions as wpd_exc
 import wp_download.config as wpd_conf
@@ -70,7 +71,7 @@ class ErrorLimit(logging.Filter):
         return False
 
 
-class PartialDownloader(urllib.FancyURLopener):
+class PartialDownloader(urllib.request.FancyURLopener):
     """Subclass that overrides error 206.
 
     This error means a partial file is being sent, which is ok in this case.
@@ -93,7 +94,7 @@ class WPDownloader(object):
         self._options = options
         self._config = wpd_conf.Configuration(options)
         self._urlhandler = URLHandler(self._config, options)
-        self._downloader = urllib.FancyURLopener()
+        self._downloader = urllib.request.FancyURLopener()
 
         LOG.info('Set timeout to %d' % (options.timeout))
 
@@ -133,7 +134,7 @@ class WPDownloader(object):
         :returns:       Content length of file at URL
         :rtype:         int
         """
-        with closing(self._downloader.open(url)) as remote_file:
+        with self._downloader.open(url) as remote_file:
             if remote_file.getcode() >= 300:
                 return 0
             return int(remote_file.headers['Content-Length'])
@@ -247,7 +248,7 @@ class WPDownloader(object):
         downloader = PartialDownloader()
         downloader.addheader('Range', 'bytes=%s-' % (offset))
 
-        with closing(downloader.open(url)) as remote_file:
+        with downloader.open(url) as remote_file:
             if remote_file.getcode() >= 300:
                 raise wpd_exc.DownloadError(
                     'Got HTTP response code: %d for file %s' %
@@ -267,8 +268,13 @@ class WPDownloader(object):
                         if offset:
                             pbar.update(offset)
                             read = offset
-
-                    for block in iter(lambda: remote_file.read(block_size), ''):
+                    done_part = 0
+                    
+                    while True:
+                    #for block in iter(lambda: remote_file.read(block_size), ''):
+                        block = remote_file.read(block_size)
+                        if len(block) < 1: 
+                            break
                         local_file.write(block)
                         read += len(block)
 
@@ -279,6 +285,7 @@ class WPDownloader(object):
 
                         if not self._options.quiet:
                             pbar.update(read)
+                        done_part = done_part + block_size
                 finally:
                     if not self._options.quiet:
                         pbar.finish()
@@ -332,7 +339,7 @@ class URLHandler(object):
         assert config
         self._config = config
 
-        self._urlopener = urllib.FancyURLopener()
+        self._urlopener = urllib.request.FancyURLopener()
         self._date_matcher = re.compile(r'<a href="(\d{8})/">.*/</a>')
 
         self._host = self._config.get('Configuration', 'base_url')
@@ -361,7 +368,7 @@ class URLHandler(object):
         :param language:    ISO 631 language code
         :type language:     string
         """
-        return urllib.basejoin(self._host, self.language_dir(language))
+        return urllib.parse.urljoin(self._host, self.language_dir(language))
 
     def dump_dates(self, url):
         """Iterator containing datetime objects that correspond to the creation
@@ -374,9 +381,9 @@ class URLHandler(object):
                             extracted from given URL.
         """
         try:
-            with closing(self._urlopener.open(url)) as lang_site:
+            with self._urlopener.open(url) as lang_site:
                 return (datetime.datetime.strptime(date, '%Y%m%d') for date in
-                         self._date_matcher.findall(lang_site.read()))
+                         self._date_matcher.findall(lang_site.read().decode('utf-8')))
         except IOError as io_err:
             LOG.error(io_err)
             LOG.error('Could not retrieve: %s' % (url))

@@ -21,7 +21,7 @@
 from __future__ import with_statement
 
 import logging
-import ConfigParser
+import configparser as ConfigParser 
 import string
 
 import wp_download.exceptions as wpd_exc

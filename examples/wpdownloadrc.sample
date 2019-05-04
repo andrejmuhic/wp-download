@@ -76,7 +76,10 @@ category = True
 # -------------------
 #   Set of defined interwiki prefixes and links for this wiki.
 
-interwiki = True
+iwlinks = True
+
+#interwiki = True
+
 
 # langlinks (boolean)
 # -------------------
@@ -127,6 +130,7 @@ redirect        = sql.gz
 page            = sql.gz
 category        = sql.gz
 interwiki       = sql.gz
+iwlinks         = sql.gz
 langlinks       = sql.gz
 externallinks   = sql.gz
 templatelinks   = sql.gz
